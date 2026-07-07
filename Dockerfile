@@ -10,8 +10,8 @@ RUN pip install --no-cache-dir flask waitress
 
 COPY . .
 
-# Expose the port
-EXPOSE 5000
+# Expose the port required by Hugging Face Spaces
+EXPOSE 7860
 
 # Start the Flask app using waitress for production
-CMD ["waitress-serve", "--port=5000", "app:app"]
+CMD ["waitress-serve", "--port=7860", "app:app"]
