@@ -25,6 +25,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const query = document.getElementById('query').value;
         const area = document.getElementById('area').value;
+        const pincode = document.getElementById('pincode').value;
         const radius = document.getElementById('radius').value;
         const max_results = document.getElementById('max_results').value;
 
@@ -42,7 +43,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/scrape', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query, area, radius, max_results })
+                body: JSON.stringify({ query, area, pincode, radius, max_results })
             });
             const data = await res.json();
             
