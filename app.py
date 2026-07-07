@@ -40,6 +40,7 @@ def worker_thread():
             data = engine.run(
                 query=job['query'],
                 area=job['area'],
+                pincode=job.get('pincode', ''),
                 radius=job['radius'],
                 max_results=job['max_results'],
                 log_callback=log_callback,
@@ -71,6 +72,7 @@ def start_scrape():
     req = request.json
     query = req.get('query')
     area = req.get('area')
+    pincode = req.get('pincode', '')
     radius = req.get('radius', '')
     max_results = req.get('max_results', 20)
     
@@ -94,6 +96,7 @@ def start_scrape():
         'job_id': job_id,
         'query': query,
         'area': area,
+        'pincode': pincode,
         'radius': radius,
         'max_results': max_results
     })

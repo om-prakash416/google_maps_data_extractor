@@ -9,8 +9,8 @@ class ScraperEngine:
     def __init__(self, headless=True):
         self.headless = headless
 
-    def run(self, query, area, radius, max_results, log_callback=None, stop_check=None):
-        search_term = f"{query} near {area}"
+    def run(self, query, area, radius, max_results, log_callback=None, stop_check=None, pincode=""):
+        search_term = f"{query} near {area} {pincode}".strip()
         if radius and str(radius).isdigit():
             search_term += f" within {radius} km"
             
@@ -44,9 +44,10 @@ class ScraperEngine:
                 feed_selector = 'div[role="feed"]'
                 previous_count = 0
                 scroll_attempts = 0
+                place_elements = []
                 
                 safe_log("🔄 Scrolling to find more listings...")
-                while len(scraped_data) < max_results and scroll_attempts < 10:
+                while len(place_elements) < max_results and scroll_attempts < 15:
                     if stop_check and stop_check():
                         safe_log("🛑 Scrolling interrupted.")
                         break
@@ -54,21 +55,26 @@ class ScraperEngine:
                     place_elements = page.locator('a[href*="/maps/place/"]').all()
                     
                     if len(place_elements) == previous_count:
-                        page.hover(feed_selector)
-                        page.mouse.wheel(0, 3000)
-                        time.sleep(2)
+                        try:
+                            page.evaluate('document.querySelector("div[role=\'feed\']").scrollBy(0, 15000)')
+                        except Exception:
+                            page.mouse.wheel(0, 5000)
+                        time.sleep(3)
                         scroll_attempts += 1
                     else:
                         scroll_attempts = 0
                         previous_count = len(place_elements)
                         safe_log(f"   Loaded {previous_count} listings in view...")
                         
-                    if len(place_elements) >= max_results:
-                        break
+                if scroll_attempts >= 15:
+                    safe_log(f"⚠️ Reached Google Maps maximum scroll limit. Found {len(place_elements)} listings.")
                         
                 safe_log(f"⭐ Found {len(place_elements)} listings! Extracting data...")
                 
-                for i, element in enumerate(place_elements[:max_results]):
+                for element in place_elements:
+                    if len(scraped_data) >= max_results:
+                        break
+                        
                     if stop_check and stop_check():
                         safe_log("🛑 Data extraction stopped.")
                         break
@@ -99,6 +105,10 @@ class ScraperEngine:
                         address_element = page.query_selector('button[data-item-id="address"]')
                         if address_element:
                             address = address_element.inner_text().strip()
+                            
+                        if pincode and pincode not in address:
+                            safe_log(f"   [Skipped] {name} - Not in Pincode {pincode}")
+                            continue
                         
                         phone_element = page.query_selector('button[data-item-id^="phone:"]')
                         if phone_element:
@@ -120,10 +130,10 @@ class ScraperEngine:
                             "Maps URL": url
                         })
                         
-                        safe_log(f"   [{i+1}/{max_results}] Extracted: {name}")
+                        safe_log(f"   [{len(scraped_data)}/{max_results}] Extracted: {name}")
                         
                     except Exception as e:
-                        safe_log(f"   [{i+1}/{max_results}] Error extracting item: {e}")
+                        safe_log(f"   [Error] {name if 'name' in locals() else 'Unknown'} - {e}")
                         continue
 
                 safe_log("✅ Extraction Complete! Closing browser...")
