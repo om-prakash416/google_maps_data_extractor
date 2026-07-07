@@ -1,3 +1,13 @@
+---
+title: Google Maps Data Extractor Pro
+emoji: 📍
+colorFrom: blue
+colorTo: purple
+sdk: docker
+app_file: app.py
+pinned: false
+---
+
 # Google Maps Data Extractor 📍
 
 A powerful, modern, and completely free Python desktop application to extract business data from Google Maps and save it directly to CSV.
