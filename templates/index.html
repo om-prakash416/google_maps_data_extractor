@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
+    <!-- SEO Meta Tags -->
+    <title>Google Maps Data Extractor Pro | Free Business Scraper Tool</title>
+    <meta name="description" content="Free and powerful Google Maps Data Extractor. Quickly scrape and export business details like phone numbers, addresses, websites, and coordinates into CSV or Excel formats.">
+    <meta name="keywords" content="Google Maps Scraper, Data Extractor, Business Leads Scraper, Google Maps Export to Excel, Free Scraper Tool, B2B Lead Generation">
+    <meta name="author" content="Om Prakash">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://your-app-url.com/">
+
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://your-app-url.com/">
+    <meta property="og:title" content="Google Maps Data Extractor Pro | Free Business Scraper">
+    <meta property="og:description" content="Extract unlimited business data from Google Maps directly into Excel/CSV. Built for fast and secure B2B lead generation.">
+    
+    <!-- Twitter -->
+    <meta property="twitter:card" content="summary_large_image">
+    <meta property="twitter:url" content="https://your-app-url.com/">
+    <meta property="twitter:title" content="Google Maps Data Extractor Pro">
+    <meta property="twitter:description" content="Extract unlimited business data from Google Maps directly into Excel/CSV. Built for fast and secure B2B lead generation.">
+
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Google Fonts for Modern Typography -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="app-container">
+        
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <div class="logo-container">
+                <span class="icon">📍</span>
+                <h1>GMaps Extractor</h1>
+                <p class="subtitle">Extract ANY business data</p>
+            </div>
+
+            <form id="scrape-form">
+                <div class="input-group">
+                    <label for="query">What do you want to search?</label>
+                    <input type="text" id="query" name="query" placeholder="e.g., Restaurants" required>
+                </div>
+                
+                <div class="input-group">
+                    <label for="area">Area / Location</label>
+                    <input type="text" id="area" name="area" placeholder="e.g., Delhi" required>
+                </div>
+
+                <div class="input-group">
+                    <label for="radius">Radius in km (Optional)</label>
+                    <input type="number" id="radius" name="radius" placeholder="e.g., 5">
+                </div>
+
+                <div class="input-group">
+                    <label for="max_results">Max Results to Extract</label>
+                    <input type="number" id="max_results" name="max_results" value="20" required>
+                </div>
+
+                <button type="submit" class="btn-primary" id="start-btn">
+                    <span>▶</span> Start Scraping
+                </button>
+                <button type="button" class="btn-danger" id="stop-btn" disabled>
+                    <span>⏹</span> Stop
+                </button>
+            </form>
+
+            <div class="footer">
+                <p>Made by Om Prakash</p>
+                <a href="https://github.com/om-prakash416" target="_blank">GitHub: om-prakash416</a>
+            </div>
+        </aside>
+
+        <!-- Main Content Area -->
+        <main class="main-content">
+            
+            <div class="status-card">
+                <div class="status-indicator">
+                    <span class="pulse-dot" id="status-dot"></span>
+                    <h2 id="status-text">Status: Ready</h2>
+                </div>
+                <div class="progress-bar-container">
+                    <div class="progress-bar" id="progress-bar"></div>
+                </div>
+            </div>
+
+            <div class="console-card">
+                <h3>Activity Log</h3>
+                <div class="terminal" id="log-console">
+                    <!-- Logs will appear here -->
+                    <p class="log-info">Waiting to start...</p>
+                </div>
+            </div>
+
+            <div class="export-card disabled" id="export-card">
+                <h3>Download Results</h3>
+                <div class="export-buttons">
+                    <button class="btn-export btn-csv" data-format="csv">📄 CSV</button>
+                    <button class="btn-export btn-xlsx" data-format="xlsx">📊 XLSX</button>
+                    <button class="btn-export btn-xls" data-format="xls">📉 XLS</button>
+                </div>
+            </div>
+            
+        </main>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>

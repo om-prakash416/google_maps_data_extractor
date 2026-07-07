@@ -1,2 +1,5 @@
 playwright==1.42.0
 customtkinter==5.2.2
+pandas
+openpyxl
+xlwt
