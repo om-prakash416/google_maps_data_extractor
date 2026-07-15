@@ -4,3 +4,6 @@ pandas
 openpyxl
 xlwt
 Flask
+requests
+beautifulsoup4
+fake-useragent

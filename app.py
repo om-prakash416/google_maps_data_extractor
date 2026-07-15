@@ -43,6 +43,8 @@ def worker_thread():
                 pincode=job.get('pincode', ''),
                 radius=job['radius'],
                 max_results=job['max_results'],
+                max_threads=job.get('max_threads', 2),
+                proxy=job.get('proxy', None),
                 log_callback=log_callback,
                 stop_check=stop_check
             )
@@ -75,14 +77,17 @@ def start_scrape():
     pincode = req.get('pincode', '')
     radius = req.get('radius', '')
     max_results = req.get('max_results', 20)
+    max_threads = req.get('max_threads', 2)
+    proxy = req.get('proxy', '').strip()
     
     if not query or not area:
         return jsonify({"error": "Query and Area are required"}), 400
         
     try:
         max_results = int(max_results)
+        max_threads = int(max_threads)
     except ValueError:
-        return jsonify({"error": "Max Results must be a number"}), 400
+        return jsonify({"error": "Max Results and Max Threads must be numbers"}), 400
 
     job_id = str(uuid.uuid4())
     active_jobs[job_id] = {
@@ -90,7 +95,8 @@ def start_scrape():
         'logs': [f"📋 Job created. Position in queue: {job_queue.qsize() + 1}"],
         'data': [],
         'stop_flag': False,
-        'area': area
+        'area': area,
+        'last_sent_index': 0
     }
     
     job_queue.put({
@@ -99,7 +105,9 @@ def start_scrape():
         'area': area,
         'pincode': pincode,
         'radius': radius,
-        'max_results': max_results
+        'max_results': max_results,
+        'max_threads': max_threads,
+        'proxy': proxy if proxy else None
     })
     
     return jsonify({"job_id": job_id, "message": "Job queued successfully"})
@@ -115,10 +123,17 @@ def check_status(job_id):
     logs_to_send = list(job['logs'])
     job['logs'].clear()
     
+    # Send incremental new data for the live table
+    last_idx = job.get('last_sent_index', 0)
+    current_data = job['data']
+    new_data = current_data[last_idx:]
+    job['last_sent_index'] = len(current_data)
+    
     return jsonify({
         "status": job['status'],
         "logs": logs_to_send,
-        "results_count": len(job['data'])
+        "new_data": new_data,
+        "results_count": len(current_data)
     })
 
 @app.route('/api/stop/<job_id>', methods=['POST'])
@@ -139,6 +154,15 @@ def download_data(job_id, format_type):
         
     os.makedirs('outputs', exist_ok=True)
     df = pd.DataFrame(job['data'])
+    
+    # Filter columns based on selected fields
+    fields_param = request.args.get('fields', '')
+    if fields_param:
+        selected_fields = [f.strip() for f in fields_param.split(',') if f.strip()]
+        # Only keep columns that exist in the data and were selected
+        valid_fields = [f for f in selected_fields if f in df.columns]
+        if valid_fields:
+            df = df[valid_fields]
     
     area_name = job.get('area', 'Extracted_Data').replace(',', '_').replace(' ', '')
     if len(area_name) > 30:

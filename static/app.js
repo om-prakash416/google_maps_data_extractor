@@ -1,4 +1,26 @@
 document.addEventListener('DOMContentLoaded', () => {
+
+    // Help Modal Logic
+    const helpBtn = document.getElementById('help-btn');
+    const helpModal = document.getElementById('help-modal');
+    const closeModal = document.getElementById('close-modal');
+
+    if (helpBtn && helpModal && closeModal) {
+        helpBtn.addEventListener('click', () => {
+            helpModal.style.display = 'flex';
+        });
+
+        closeModal.addEventListener('click', () => {
+            helpModal.style.display = 'none';
+        });
+
+        helpModal.addEventListener('click', (e) => {
+            if (e.target === helpModal) {
+                helpModal.style.display = 'none';
+            }
+        });
+    }
+
     const form = document.getElementById('scrape-form');
     const startBtn = document.getElementById('start-btn');
     const stopBtn = document.getElementById('stop-btn');
@@ -20,6 +42,26 @@ document.addEventListener('DOMContentLoaded', () => {
         logConsole.scrollTop = logConsole.scrollHeight;
     }
 
+    const liveDataCard = document.getElementById('live-data-card');
+    const liveTableBody = document.getElementById('live-table-body');
+    
+    // Map variables
+    let map = null;
+    let markersLayer = null;
+
+    function initMap() {
+        if (!map) {
+            map = L.map('leads-map').setView([20.5937, 78.9629], 4); // Default to India
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '&copy; OpenStreetMap contributors'
+            }).addTo(map);
+            markersLayer = L.layerGroup().addTo(map);
+            
+            // Fix map sizing issues when inside a hidden div
+            setTimeout(() => { map.invalidateSize(); }, 500);
+        }
+    }
+
     form.addEventListener('submit', async (e) => {
         e.preventDefault();
         
@@ -28,13 +70,19 @@ document.addEventListener('DOMContentLoaded', () => {
         const pincode = document.getElementById('pincode').value;
         const radius = document.getElementById('radius').value;
         const max_results = document.getElementById('max_results').value;
+        const max_threads = document.getElementById('max_threads') ? document.getElementById('max_threads').value : 2;
+        const proxy = document.getElementById('proxy') ? document.getElementById('proxy').value : '';
 
         // Reset UI
         startBtn.disabled = true;
         stopBtn.disabled = false;
         exportCard.classList.add('disabled');
         logConsole.innerHTML = '';
+        liveTableBody.innerHTML = '';
+        liveDataCard.style.display = 'none';
         progressBar.classList.add('active');
+        
+        if (markersLayer) markersLayer.clearLayers();
         
         statusText.textContent = "Status: Queuing...";
         statusDot.className = 'pulse-dot running';
@@ -43,7 +91,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const res = await fetch('/api/scrape', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ query, area, pincode, radius, max_results })
+                body: JSON.stringify({ query, area, pincode, radius, max_results, max_threads, proxy })
             });
             const data = await res.json();
             
@@ -96,6 +144,45 @@ document.addEventListener('DOMContentLoaded', () => {
                     appendLog(log, type);
                 });
 
+                // Update Live Data Table & Map
+                if (data.new_data && data.new_data.length > 0) {
+                    if (liveDataCard.style.display === 'none') {
+                        liveDataCard.style.display = 'block';
+                        initMap();
+                    }
+                    
+                    data.new_data.forEach(item => {
+                        // Add to Table
+                        const tr = document.createElement('tr');
+                        const emailDisp = item.Emails !== 'N/A' ? item.Emails : '-';
+                        tr.innerHTML = `
+                            <td>${item.Name}</td>
+                            <td>${item.Area}</td>
+                            <td>${item.Phone}</td>
+                            <td class="${emailDisp !== '-' ? 'text-success' : 'text-muted'}">${emailDisp}</td>
+                        `;
+                        liveTableBody.appendChild(tr);
+                        
+                        // Add to Map
+                        if (item.Latitude && item.Longitude && markersLayer) {
+                            const lat = parseFloat(item.Latitude);
+                            const lng = parseFloat(item.Longitude);
+                            if (!isNaN(lat) && !isNaN(lng)) {
+                                const marker = L.marker([lat, lng]).addTo(markersLayer);
+                                marker.bindPopup(`
+                                    <strong>${item.Name}</strong><br>
+                                    📍 ${item.Area}<br>
+                                    📞 ${item.Phone !== 'N/A' ? item.Phone : 'No phone'}<br>
+                                    ✉️ ${emailDisp}
+                                `);
+                                
+                                // Pan to the latest marker smoothly
+                                map.flyTo([lat, lng], 12, { animate: true, duration: 1.5 });
+                            }
+                        }
+                    });
+                }
+
                 if (data.status === 'running') {
                     statusText.textContent = "Status: Scraping...";
                 }
@@ -145,7 +232,18 @@ document.addEventListener('DOMContentLoaded', () => {
         btn.addEventListener('click', () => {
             if (!currentJobId) return;
             const format = btn.getAttribute('data-format');
-            window.location.href = `/api/download/${currentJobId}/${format}`;
+            
+            // Get selected fields
+            const checkboxes = document.querySelectorAll('#field-checkboxes input[type="checkbox"]:checked');
+            const selectedFields = Array.from(checkboxes).map(cb => cb.value);
+            
+            if (selectedFields.length === 0) {
+                alert('Please select at least one field to export!');
+                return;
+            }
+            
+            const fieldsParam = encodeURIComponent(selectedFields.join(','));
+            window.location.href = `/api/download/${currentJobId}/${format}?fields=${fieldsParam}`;
         });
     });
 });
