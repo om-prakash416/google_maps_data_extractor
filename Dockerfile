@@ -16,5 +16,5 @@ RUN mkdir -p outputs && chmod -R 777 /app
 # Expose the port required by Hugging Face Spaces
 EXPOSE 7860
 
-# Start the Flask app using waitress for production
-CMD ["waitress-serve", "--port=7860", "app:app"]
+# Start the Flask app
+CMD ["python", "app.py"]
