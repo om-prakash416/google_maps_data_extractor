@@ -22,12 +22,22 @@ class ScraperEngine:
                 
         try:
             with sync_playwright() as p:
-                safe_log("🌐 Opening Browser...")
+                safe_log("🌐 Opening Browser (Memory Optimized)...")
                 browser = p.chromium.launch(
                     headless=self.headless,
-                    args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+                    args=[
+                        '--no-sandbox', 
+                        '--disable-setuid-sandbox', 
+                        '--disable-dev-shm-usage',
+                        '--disable-gpu',
+                        '--disable-software-rasterizer'
+                    ]
                 )
                 context = browser.new_context(locale="en-US")
+                
+                # Block heavy resources to save RAM
+                context.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
+                
                 page = context.new_page()
                 
                 encoded_query = urllib.parse.quote(search_term)

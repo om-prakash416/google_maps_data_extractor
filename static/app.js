@@ -115,6 +115,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 console.error("Polling error:", err);
+                clearInterval(pollInterval);
+                pollInterval = null;
+                progressBar.classList.remove('active');
+                statusText.textContent = "Status: Server Error";
+                statusDot.className = 'pulse-dot error';
+                appendLog(`❌ Polling error: ${err.message}`, 'error');
+                resetUI(false);
             }
         }, 1000); // poll every 1 second
     }
