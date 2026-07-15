@@ -23,7 +23,8 @@ A powerful, modern, and completely free Python desktop application to extract bu
 
 ## 🚀 Setup & Installation
 
-**Prerequisites:** Python 3.10+ must be installed on your system.
+**Prerequisites:** Python 3.10+ must be installed on your system
+
 
 1. **Clone the repository:**
    ```bash
