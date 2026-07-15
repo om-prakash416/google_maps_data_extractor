@@ -151,5 +151,6 @@ def download_data(job_id, format_type):
         return "Unsupported format", 400
 
 if __name__ == '__main__':
-    # Using threaded=True for dev, but queue ensures 1 scraper max
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Use port 7860 for Hugging Face Spaces compatibility
+    port = int(os.environ.get('PORT', 7860))
+    app.run(host='0.0.0.0', port=port, debug=False)
