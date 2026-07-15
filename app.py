@@ -89,7 +89,8 @@ def start_scrape():
         'status': 'queued',
         'logs': [f"📋 Job created. Position in queue: {job_queue.qsize() + 1}"],
         'data': [],
-        'stop_flag': False
+        'stop_flag': False,
+        'area': area
     }
     
     job_queue.put({
@@ -139,14 +140,18 @@ def download_data(job_id, format_type):
     os.makedirs('outputs', exist_ok=True)
     df = pd.DataFrame(job['data'])
     
+    area_name = job.get('area', 'Extracted_Data').replace(',', '_').replace(' ', '')
+    if len(area_name) > 30:
+        area_name = area_name[:30] # Keep filename length reasonable
+        
     if format_type == 'csv':
         filepath = f"outputs/data_{job_id}.csv"
         df.to_csv(filepath, index=False)
-        return send_file(filepath, as_attachment=True, download_name=f"Extracted_Data.csv")
+        return send_file(filepath, as_attachment=True, download_name=f"{area_name}.csv")
     elif format_type in ['xlsx', 'xls']:
         filepath = f"outputs/data_{job_id}.{format_type}"
         df.to_excel(filepath, index=False)
-        return send_file(filepath, as_attachment=True, download_name=f"Extracted_Data.{format_type}")
+        return send_file(filepath, as_attachment=True, download_name=f"{area_name}.{format_type}")
     else:
         return "Unsupported format", 400
 

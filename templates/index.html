@@ -53,13 +53,19 @@
 
             <form id="scrape-form">
                 <div class="input-group">
-                    <label for="query">What do you want to search?</label>
-                    <input type="text" id="query" name="query" placeholder="e.g., Restaurants" required>
+                    <label for="query">
+                        What do you want to search?
+                        <span class="info-icon" title="Enter multiple keywords separated by commas. Example: mens saloon, beauty parlor, spa">ℹ️</span>
+                    </label>
+                    <input type="text" id="query" name="query" placeholder="e.g., mens saloon, spa" required>
                 </div>
                 
                 <div class="input-group">
-                    <label for="area">Area / Location</label>
-                    <input type="text" id="area" name="area" placeholder="e.g., Delhi" required>
+                    <label for="area">
+                        Area / Location
+                        <span class="info-icon" title="Enter multiple areas separated by commas to bypass Google limits. Example: Ahmedabad 380001, Bopal, Vastrapur">ℹ️</span>
+                    </label>
+                    <input type="text" id="area" name="area" placeholder="e.g., Ahmedabad 380001, Bopal" required>
                 </div>
 
                 <div class="input-group">
