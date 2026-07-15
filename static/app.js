@@ -123,7 +123,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 appendLog(`❌ Polling error: ${err.message}`, 'error');
                 resetUI(false);
             }
-        }, 1000); // poll every 1 second
+        }, 3000); // poll every 3 seconds
     }
 
     function resetUI(clearData = true) {
