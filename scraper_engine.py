@@ -23,7 +23,10 @@ class ScraperEngine:
         try:
             with sync_playwright() as p:
                 safe_log("🌐 Opening Browser...")
-                browser = p.chromium.launch(headless=self.headless)
+                browser = p.chromium.launch(
+                    headless=self.headless,
+                    args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+                )
                 context = browser.new_context(locale="en-US")
                 page = context.new_page()
                 

@@ -10,6 +10,9 @@ RUN pip install --no-cache-dir flask waitress
 
 COPY . .
 
+# Hugging Face Spaces runs as user 1000 by default. Give permissions to write outputs.
+RUN mkdir -p outputs && chmod -R 777 /app
+
 # Expose the port required by Hugging Face Spaces
 EXPOSE 7860
 
