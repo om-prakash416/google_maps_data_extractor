@@ -148,10 +148,14 @@ def download_data(job_id, format_type):
         hisgro_data = []
         for item in job['data']:
             hisgro_data.append({
+                'name': item.get('Name', ''),
                 'shop_name': item.get('Name', ''),
                 'email': '',
                 'phone': item.get('Phone', ''),
                 'address': item.get('Address', ''),
+                'city': '', 
+                'state': '',
+                'pincode': job.get('pincode', ''),
                 'owner_name': '',
                 'map_url': item.get('Maps URL', ''),
                 'area_id': '',
