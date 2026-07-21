@@ -78,7 +78,12 @@ document.addEventListener('DOMContentLoaded', () => {
             
             try {
                 const res = await fetch(`/api/status/${currentJobId}`);
-                if (!res.ok) throw new Error("Status check failed");
+                if (!res.ok) {
+                    if (res.status === 404) {
+                        throw new Error("Job not found (404). The server may have restarted due to memory limits.");
+                    }
+                    throw new Error("Status check failed");
+                }
                 
                 const data = await res.json();
                 
