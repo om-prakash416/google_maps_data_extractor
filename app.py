@@ -144,7 +144,26 @@ def download_data(job_id, format_type):
     if len(area_name) > 30:
         area_name = area_name[:30] # Keep filename length reasonable
         
-    if format_type == 'csv':
+    if format_type == 'hisgro':
+        hisgro_data = []
+        for item in job['data']:
+            hisgro_data.append({
+                'shop_name': item.get('Name', ''),
+                'email': '',
+                'phone': item.get('Phone', ''),
+                'address': item.get('Address', ''),
+                'owner_name': '',
+                'map_url': item.get('Maps URL', ''),
+                'area_id': '',
+                'lead_status': 'pending',
+                'assign_id': '',
+                'status': '1'
+            })
+        df_hisgro = pd.DataFrame(hisgro_data)
+        filepath = f"outputs/data_{job_id}_hisgro.csv"
+        df_hisgro.to_csv(filepath, index=False)
+        return send_file(filepath, as_attachment=True, download_name=f"{area_name}_Hisgro.csv")
+    elif format_type == 'csv':
         filepath = f"outputs/data_{job_id}.csv"
         df.to_csv(filepath, index=False)
         return send_file(filepath, as_attachment=True, download_name=f"{area_name}.csv")
