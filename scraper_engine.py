@@ -179,10 +179,14 @@ class ScraperEngine:
                         
                         if len(place_elements) == previous_count:
                             try:
+                                page.hover('div[role="feed"]')
+                            except Exception:
+                                pass
+                            try:
                                 page.evaluate("document.querySelector('div[role=\"feed\"]').scrollBy(0, 15000)")
                             except Exception:
                                 page.mouse.wheel(0, 5000)
-                            time.sleep(3)
+                            time.sleep(2.5)
                             scroll_attempts += 1
                         else:
                             scroll_attempts = 0
