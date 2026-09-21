@@ -131,7 +131,7 @@ class ScraperEngine:
                     search_url = f"https://www.google.com/maps/search/{encoded_query}"
                     
                     safe_log(f"🔍 Searching: '{search_term}'")
-                    page.goto(search_url, timeout=60000)
+                    page.goto(search_url, wait_until='domcontentloaded', timeout=30000)
                     
                     # Handle Google consent popup on cloud servers
                     try:
