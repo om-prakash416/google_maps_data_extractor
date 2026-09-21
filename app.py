@@ -115,7 +115,13 @@ def start_scrape():
 @app.route('/api/status/<job_id>', methods=['GET'])
 def check_status(job_id):
     if job_id not in active_jobs:
-        return jsonify({"error": "Job not found"}), 404
+        return jsonify({
+            "status": "error",
+            "logs": ["❌ Polling Error: Job not found in server memory. The server likely restarted due to memory or time limits."],
+            "new_data": [],
+            "results_count": 0,
+            "error": "Job not found (Server restarted)"
+        }), 200
         
     job = active_jobs[job_id]
     

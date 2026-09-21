@@ -17,7 +17,7 @@ def extract_website_details(url):
         
     try:
         headers = {'User-Agent': UserAgent().random}
-        response = requests.get(url, headers=headers, timeout=10)
+        response = requests.get(url, headers=headers, timeout=4)
         
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -77,7 +77,11 @@ class ScraperEngine:
                         '--disable-setuid-sandbox', 
                         '--disable-dev-shm-usage',
                         '--disable-gpu',
-                        '--disable-software-rasterizer'
+                        '--disable-software-rasterizer',
+                        '--disable-extensions',
+                        '--no-first-run',
+                        '--no-zygote',
+                        '--js-flags=--max-old-space-size=256'
                     ]
                     
                     browser_options = {
@@ -96,7 +100,7 @@ class ScraperEngine:
                     context = browser.new_context(locale="en-US", user_agent=ua)
                     
                     # Block heavy resources to save RAM
-                    context.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font"] else route.continue_())
+                    context.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font", "stylesheet"] else route.continue_())
                     
                     page = context.new_page()
                     
