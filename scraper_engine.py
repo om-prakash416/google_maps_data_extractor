@@ -104,9 +104,10 @@ class ScraperEngine:
                     
                     page = context.new_page()
                     
-                    search_term = f"{current_query} near {current_area} {pincode}".strip()
-                    if radius and str(radius).isdigit():
-                        search_term += f" within {radius} km"
+                    search_parts = [current_query, "near", current_area]
+                    if pincode and str(pincode).strip():
+                        search_parts.append(str(pincode).strip())
+                    search_term = " ".join(search_parts).strip()
                         
                     encoded_query = urllib.parse.quote(search_term)
                     search_url = f"https://www.google.com/maps/search/{encoded_query}"
@@ -116,7 +117,7 @@ class ScraperEngine:
                     
                     safe_log(f"⏳ Waiting for results for '{search_term}'...")
                     try:
-                        page.wait_for_selector('div[role="feed"]', timeout=15000)
+                        page.wait_for_selector('div[role="feed"], a[href*="/maps/place/"]', timeout=15000)
                     except Exception:
                         safe_log(f"❌ Could not find results for '{search_term}'.")
                         browser.close()
