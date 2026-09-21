@@ -95,14 +95,18 @@ class ScraperEngine:
                         
                     browser = p.chromium.launch(**browser_options)
                     
-                    # Generate fake user agent
-                    ua = UserAgent().random
-                    context = browser.new_context(locale="en-US", user_agent=ua)
+                    # Use fixed Desktop Chrome User Agent and 1920x1080 Viewport so Google Maps always renders desktop layout
+                    desktop_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
+                    context = browser.new_context(
+                        locale="en-US", 
+                        user_agent=desktop_ua,
+                        viewport={"width": 1920, "height": 1080}
+                    )
                     
-                    # Block heavy resources to save RAM safely
+                    # Block images, media, fonts (keep stylesheets enabled so Google Maps layout renders)
                     def handle_route(route):
                         try:
-                            if route.request.resource_type in ["image", "media", "font", "stylesheet"]:
+                            if route.request.resource_type in ["image", "media", "font"]:
                                 route.abort()
                             else:
                                 route.continue_()
@@ -135,18 +139,21 @@ class ScraperEngine:
                     
                     # Handle Google consent popup on cloud servers
                     try:
-                        for btn_text in ["Accept all", "I agree", "Accept", "Reject all"]:
-                            btn = page.query_selector(f'button:has-text("{btn_text}")')
-                            if btn:
-                                btn.click()
-                                time.sleep(2)
-                                break
+                        if "consent.google.com" in page.url or page.query_selector('button:has-text("Accept all"), button:has-text("I agree")'):
+                            for btn_text in ["Accept all", "I agree", "Accept", "Reject all"]:
+                                btn = page.query_selector(f'button:has-text("{btn_text}")')
+                                if btn:
+                                    btn.click()
+                                    time.sleep(2)
+                                    break
+                            if "consent.google.com" in page.url:
+                                page.goto(search_url, wait_until='domcontentloaded', timeout=30000)
                     except Exception:
                         pass
                     
                     safe_log(f"⏳ Waiting for results for '{search_term}'...")
                     try:
-                        page.wait_for_selector('div[role="feed"], a[href*="/maps/place/"], h1', timeout=20000)
+                        page.wait_for_selector('div[role="feed"], a[href*="/maps/place/"], div[aria-label*="Results"]', timeout=25000)
                     except Exception:
                         safe_log(f"❌ Could not find results for '{search_term}'.")
                         safe_close_browser()
