@@ -99,8 +99,27 @@ class ScraperEngine:
                     ua = UserAgent().random
                     context = browser.new_context(locale="en-US", user_agent=ua)
                     
-                    # Block heavy resources to save RAM
-                    context.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font", "stylesheet"] else route.continue_())
+                    # Block heavy resources to save RAM safely
+                    def handle_route(route):
+                        try:
+                            if route.request.resource_type in ["image", "media", "font", "stylesheet"]:
+                                route.abort()
+                            else:
+                                route.continue_()
+                        except Exception:
+                            pass
+
+                    context.route("**/*", handle_route)
+                    
+                    def safe_close_browser():
+                        try:
+                            context.unroute("**/*")
+                        except Exception:
+                            pass
+                        try:
+                            browser.close()
+                        except Exception:
+                            pass
                     
                     page = context.new_page()
                     
@@ -120,7 +139,7 @@ class ScraperEngine:
                         page.wait_for_selector('div[role="feed"], a[href*="/maps/place/"]', timeout=15000)
                     except Exception:
                         safe_log(f"❌ Could not find results for '{search_term}'.")
-                        browser.close()
+                        safe_close_browser()
                         return
                         
                     previous_count = 0
@@ -235,7 +254,7 @@ class ScraperEngine:
                         except Exception as e:
                             pass
                             
-                    browser.close()
+                    safe_close_browser()
                     
             except Exception as e:
                 safe_log(f"❌ Thread Error for '{current_area}': {str(e)}")
