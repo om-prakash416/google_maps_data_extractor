@@ -123,10 +123,9 @@ class ScraperEngine:
                     
                     page = context.new_page()
                     
-                    search_parts = [current_query, "near", current_area]
+                    search_term = f"{current_query} in {current_area}".strip()
                     if pincode and str(pincode).strip():
-                        search_parts.append(str(pincode).strip())
-                    search_term = " ".join(search_parts).strip()
+                        search_term += f" {str(pincode).strip()}"
                         
                     encoded_query = urllib.parse.quote(search_term)
                     search_url = f"https://www.google.com/maps/search/{encoded_query}"
@@ -134,9 +133,20 @@ class ScraperEngine:
                     safe_log(f"🔍 Searching: '{search_term}'")
                     page.goto(search_url, timeout=60000)
                     
+                    # Handle Google consent popup on cloud servers
+                    try:
+                        for btn_text in ["Accept all", "I agree", "Accept", "Reject all"]:
+                            btn = page.query_selector(f'button:has-text("{btn_text}")')
+                            if btn:
+                                btn.click()
+                                time.sleep(2)
+                                break
+                    except Exception:
+                        pass
+                    
                     safe_log(f"⏳ Waiting for results for '{search_term}'...")
                     try:
-                        page.wait_for_selector('div[role="feed"], a[href*="/maps/place/"]', timeout=15000)
+                        page.wait_for_selector('div[role="feed"], a[href*="/maps/place/"], h1', timeout=20000)
                     except Exception:
                         safe_log(f"❌ Could not find results for '{search_term}'.")
                         safe_close_browser()
@@ -218,8 +228,11 @@ class ScraperEngine:
                             if address_element:
                                 address = address_element.inner_text().strip()
                                 
-                            if pincode and pincode not in address:
-                                continue
+                            if pincode and str(pincode).strip():
+                                p_str = str(pincode).strip()
+                                found_pins = re.findall(r'\b\d{6}\b', address)
+                                if found_pins and p_str not in found_pins:
+                                    continue
                             
                             phone_element = page.query_selector('button[data-item-id^="phone:"]')
                             if phone_element:
