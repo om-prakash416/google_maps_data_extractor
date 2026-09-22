@@ -4,6 +4,8 @@ pandas
 openpyxl
 xlwt
 Flask
+waitress
 requests
 beautifulsoup4
 fake-useragent
+

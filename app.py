@@ -7,12 +7,17 @@ import os
 import pandas as pd
 from scraper_engine import ScraperEngine
 
+try:
+    from waitress import serve
+    HAS_WAITRESS = True
+except ImportError:
+    HAS_WAITRESS = False
+
 app = Flask(__name__)
 
 # Global state to manage jobs and queue
-# For a free server with 512MB RAM, we should strictly limit to 1 concurrent job.
 job_queue = queue.Queue()
-active_jobs = {} # { job_id: { 'status': 'queued|running|completed|error', 'logs': [], 'data': [], 'stop_flag': False } }
+active_jobs = {} # { job_id: { 'status': 'queued|running|completed|error', 'logs': [], 'data': [], 'stop_flag': False, 'created_at': timestamp } }
 current_running_job_id = None
 
 def worker_thread():
@@ -24,6 +29,11 @@ def worker_thread():
         job_id = job['job_id']
         current_running_job_id = job_id
         
+        if job_id not in active_jobs:
+            job_queue.task_done()
+            current_running_job_id = None
+            continue
+            
         active_jobs[job_id]['status'] = 'running'
         active_jobs[job_id]['logs'].append("🚀 Job started processing from the queue...")
         
@@ -61,8 +71,33 @@ def worker_thread():
         current_running_job_id = None
         job_queue.task_done()
 
-# Start the background worker
+def cleanup_worker():
+    """Background task to remove old jobs & output files to prevent RAM & disk leaks."""
+    while True:
+        time.sleep(300) # Run every 5 minutes
+        now = time.time()
+        
+        # Cleanup jobs older than 30 minutes
+        expired_ids = [
+            jid for jid, jinfo in list(active_jobs.items())
+            if now - jinfo.get('created_at', now) > 1800
+        ]
+        for jid in expired_ids:
+            active_jobs.pop(jid, None)
+            
+        # Cleanup outputs folder older than 1 hour
+        if os.path.exists('outputs'):
+            try:
+                for fname in os.listdir('outputs'):
+                    fpath = os.path.join('outputs', fname)
+                    if os.path.isfile(fpath) and (now - os.path.getmtime(fpath) > 3600):
+                        os.remove(fpath)
+            except Exception:
+                pass
+
+# Start background worker and cleanup threads
 threading.Thread(target=worker_thread, daemon=True).start()
+threading.Thread(target=cleanup_worker, daemon=True).start()
 
 
 @app.route('/')
@@ -71,7 +106,7 @@ def index():
 
 @app.route('/api/scrape', methods=['POST'])
 def start_scrape():
-    req = request.json
+    req = request.json or {}
     query = req.get('query')
     area = req.get('area')
     pincode = req.get('pincode', '')
@@ -85,7 +120,7 @@ def start_scrape():
         
     try:
         max_results = int(max_results)
-        max_threads = int(max_threads)
+        max_threads = min(int(max_threads), 2) # Cap at 2 threads max to preserve RAM
     except ValueError:
         return jsonify({"error": "Max Results and Max Threads must be numbers"}), 400
 
@@ -96,7 +131,8 @@ def start_scrape():
         'data': [],
         'stop_flag': False,
         'area': area,
-        'last_sent_index': 0
+        'last_sent_index': 0,
+        'created_at': time.time()
     }
     
     job_queue.put({
@@ -116,12 +152,12 @@ def start_scrape():
 def check_status(job_id):
     if job_id not in active_jobs:
         return jsonify({
-            "status": "error",
-            "logs": ["❌ Polling Error: Job not found in server memory. The server likely restarted due to memory or time limits."],
+            "status": "not_found",
+            "logs": ["❌ Job not found in server memory (expired or server restarted)."],
             "new_data": [],
             "results_count": 0,
-            "error": "Job not found (Server restarted)"
-        }), 200
+            "error": "Job not found"
+        }), 404
         
     job = active_jobs[job_id]
     
@@ -205,6 +241,11 @@ def download_data(job_id, format_type):
         return "Unsupported format", 400
 
 if __name__ == '__main__':
-    # Use port 7860 for Hugging Face Spaces compatibility
     port = int(os.environ.get('PORT', 7860))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    if HAS_WAITRESS:
+        print(f"Starting Waitress server on 0.0.0.0:{port}...")
+        serve(app, host='0.0.0.0', port=port, threads=4)
+    else:
+        print(f"Waitress not available, falling back to app.run on port {port}...")
+        app.run(host='0.0.0.0', port=port, debug=False)
+

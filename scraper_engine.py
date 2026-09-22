@@ -5,19 +5,23 @@ import urllib.parse
 import uuid
 import os
 import requests
+import urllib3
 from bs4 import BeautifulSoup
 from fake_useragent import UserAgent
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
+# Suppress SSL warnings for fast website email extraction
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
 def extract_website_details(url):
     details = {"Emails": "N/A", "Facebook": "N/A", "Instagram": "N/A", "LinkedIn": "N/A", "YouTube": "N/A"}
-    if not url or url == "N/A":
+    if not url or url == "N/A" or not url.startswith(('http://', 'https://')):
         return details
         
     try:
-        headers = {'User-Agent': UserAgent().random}
-        response = requests.get(url, headers=headers, timeout=4)
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36'}
+        response = requests.get(url, headers=headers, timeout=2.5, verify=False)
         
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
@@ -27,9 +31,9 @@ def extract_website_details(url):
             emails = set(re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', html_text))
             if emails:
                 # Filter out obvious false positives
-                valid_emails = [e for e in emails if not e.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.css', '.js'))]
+                valid_emails = [e for e in emails if not e.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.css', '.js', '.svg'))]
                 if valid_emails:
-                    details["Emails"] = ", ".join(valid_emails)
+                    details["Emails"] = ", ".join(list(valid_emails)[:3])
                     
             # Extract Social Links
             for link in soup.find_all('a', href=True):
@@ -60,6 +64,9 @@ class ScraperEngine:
         seen_urls = set()
         data_lock = threading.Lock()
         
+        # Clamp threads to max 2 to prevent RAM exhaustion on HF Spaces
+        max_threads = max(1, min(int(max_threads), 2))
+        
         def safe_log(msg):
             if log_callback:
                 log_callback(msg)
@@ -68,6 +75,8 @@ class ScraperEngine:
             if stop_check and stop_check():
                 return
                 
+            browser = None
+            context = None
             try:
                 with sync_playwright() as p:
                     safe_log(f"🌐 Thread started for: {current_query} near {current_area}...")
@@ -95,7 +104,6 @@ class ScraperEngine:
                         
                     browser = p.chromium.launch(**browser_options)
                     
-                    # Use fixed Desktop Chrome User Agent and 1920x1080 Viewport so Google Maps always renders desktop layout
                     desktop_ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36"
                     context = browser.new_context(
                         locale="en-US", 
@@ -103,7 +111,6 @@ class ScraperEngine:
                         viewport={"width": 1920, "height": 1080}
                     )
                     
-                    # Block images, media, fonts (keep stylesheets enabled so Google Maps layout renders)
                     def handle_route(route):
                         try:
                             if route.request.resource_type in ["image", "media", "font"]:
@@ -114,17 +121,6 @@ class ScraperEngine:
                             pass
 
                     context.route("**/*", handle_route)
-                    
-                    def safe_close_browser():
-                        try:
-                            context.unroute("**/*")
-                        except Exception:
-                            pass
-                        try:
-                            browser.close()
-                        except Exception:
-                            pass
-                    
                     page = context.new_page()
                     
                     search_term = f"{current_query} in {current_area}".strip()
@@ -137,14 +133,14 @@ class ScraperEngine:
                     safe_log(f"🔍 Searching: '{search_term}'")
                     page.goto(search_url, wait_until='domcontentloaded', timeout=30000)
                     
-                    # Handle Google consent popup on cloud servers
+                    # Handle Google consent popup
                     try:
                         if "consent.google.com" in page.url or page.query_selector('button:has-text("Accept all"), button:has-text("I agree")'):
                             for btn_text in ["Accept all", "I agree", "Accept", "Reject all"]:
                                 btn = page.query_selector(f'button:has-text("{btn_text}")')
                                 if btn:
                                     btn.click()
-                                    time.sleep(2)
+                                    time.sleep(1.5)
                                     break
                             if "consent.google.com" in page.url:
                                 page.goto(search_url, wait_until='domcontentloaded', timeout=30000)
@@ -153,10 +149,9 @@ class ScraperEngine:
                     
                     safe_log(f"⏳ Waiting for results for '{search_term}'...")
                     try:
-                        page.wait_for_selector('div[role="feed"], a[href*="/maps/place/"], div[aria-label*="Results"]', timeout=25000)
+                        page.wait_for_selector('div[role="feed"], a[href*="/maps/place/"], div[aria-label*="Results"]', timeout=20000)
                     except Exception:
                         safe_log(f"❌ Could not find results for '{search_term}'.")
-                        safe_close_browser()
                         return
                         
                     previous_count = 0
@@ -164,7 +159,7 @@ class ScraperEngine:
                     place_elements = []
                     
                     safe_log(f"🔄 Scrolling results for '{search_term}'...")
-                    while scroll_attempts < 15:
+                    while scroll_attempts < 12:
                         if stop_check and stop_check():
                             break
                             
@@ -174,7 +169,7 @@ class ScraperEngine:
                             if len(scraped_data) >= max_results:
                                 break
                         
-                        if len(place_elements) >= max_results + 20:
+                        if len(place_elements) >= max_results + 15:
                             break
                         
                         if len(place_elements) == previous_count:
@@ -186,13 +181,13 @@ class ScraperEngine:
                                 page.evaluate("document.querySelector('div[role=\"feed\"]').scrollBy(0, 15000)")
                             except Exception:
                                 page.mouse.wheel(0, 5000)
-                            time.sleep(2.5)
+                            time.sleep(2.0)
                             scroll_attempts += 1
                         else:
                             scroll_attempts = 0
                             previous_count = len(place_elements)
                             
-                    safe_log(f"⭐ Extracting {len(place_elements)} listings from '{search_term}'...")
+                    safe_log(f"⭐ Extracting up to {min(len(place_elements), max_results)} listings from '{search_term}'...")
                     
                     for element in place_elements:
                         with data_lock:
@@ -214,7 +209,7 @@ class ScraperEngine:
                                 seen_urls.add(base_url)
 
                             element.click()
-                            time.sleep(2.5)
+                            time.sleep(2.0)
                             
                             name = element.get_attribute('aria-label') or "N/A"
                             current_url = page.url
@@ -231,7 +226,7 @@ class ScraperEngine:
                             address, phone, website = "N/A", "N/A", "N/A"
                             
                             try:
-                                page.wait_for_selector('button[data-item-id="address"]', timeout=3000)
+                                page.wait_for_selector('button[data-item-id="address"]', timeout=2000)
                             except:
                                 pass
                             
@@ -253,7 +248,6 @@ class ScraperEngine:
                             if website_element:
                                 website = website_element.get_attribute('href')
                                 
-                            # Extract extra details from website
                             extra_details = extract_website_details(website)
 
                             with data_lock:
@@ -275,16 +269,25 @@ class ScraperEngine:
                                 })
                                 safe_log(f"   [{len(scraped_data)}/{max_results}] Extracted: {name}")
                             
-                        except Exception as e:
+                        except Exception:
                             pass
                             
-                    safe_close_browser()
-                    
             except Exception as e:
                 safe_log(f"❌ Thread Error for '{current_area}': {str(e)}")
+            finally:
+                if context:
+                    try:
+                        context.close()
+                    except Exception:
+                        pass
+                if browser:
+                    try:
+                        browser.close()
+                    except Exception:
+                        pass
 
         # Execute using ThreadPool
-        safe_log(f"🚀 Starting Engine with {max_threads} Threads...")
+        safe_log(f"🚀 Starting Engine with max {max_threads} concurrent thread(s)...")
         tasks = []
         for current_query in queries:
             for current_area in areas:
@@ -300,3 +303,4 @@ class ScraperEngine:
                 
         safe_log("✅ All tasks completed!")
         return scraped_data
+

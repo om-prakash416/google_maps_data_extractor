@@ -118,31 +118,56 @@ document.addEventListener('DOMContentLoaded', () => {
         await fetch(`/api/stop/${currentJobId}`, { method: 'POST' });
     });
 
+    let pollCount = 0;
+
     function startPolling() {
         if (pollInterval) clearInterval(pollInterval);
+        pollCount = 0;
         
         pollInterval = setInterval(async () => {
             if (!currentJobId) return;
+            pollCount++;
+            
+            // Safety cap: stop polling after 30 minutes (600 polls of 3s)
+            if (pollCount > 600) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+                progressBar.classList.remove('active');
+                statusText.textContent = "Status: Timeout";
+                statusDot.className = 'pulse-dot error';
+                appendLog("⚠️ Polling timeout reached (30 minutes). Stopping automatic updates.", 'error');
+                resetUI(false);
+                return;
+            }
             
             try {
                 const res = await fetch(`/api/status/${currentJobId}`);
                 if (!res.ok) {
                     if (res.status === 404) {
-                        throw new Error("Job not found (404). The server may have restarted due to memory limits.");
+                        clearInterval(pollInterval);
+                        pollInterval = null;
+                        progressBar.classList.remove('active');
+                        statusText.textContent = "Status: Job Expired";
+                        statusDot.className = 'pulse-dot error';
+                        appendLog("❌ Job not found on server (server restarted or job expired).", 'error');
+                        resetUI(false);
+                        return;
                     }
-                    throw new Error("Status check failed");
+                    throw new Error(`Status check failed (${res.status})`);
                 }
                 
                 const data = await res.json();
                 
                 // Print logs
-                data.logs.forEach(log => {
-                    let type = 'normal';
-                    if (log.includes('❌')) type = 'error';
-                    if (log.includes('✅') || log.includes('🎉')) type = 'success';
-                    if (log.includes('🚀') || log.includes('🔍')) type = 'info';
-                    appendLog(log, type);
-                });
+                if (data.logs && data.logs.length > 0) {
+                    data.logs.forEach(log => {
+                        let type = 'normal';
+                        if (log.includes('❌')) type = 'error';
+                        if (log.includes('✅') || log.includes('🎉')) type = 'success';
+                        if (log.includes('🚀') || log.includes('🔍')) type = 'info';
+                        appendLog(log, type);
+                    });
+                }
 
                 // Update Live Data Table & Map
                 if (data.new_data && data.new_data.length > 0) {
@@ -176,7 +201,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                     ✉️ ${emailDisp}
                                 `);
                                 
-                                // Pan to the latest marker smoothly
                                 map.flyTo([lat, lng], 12, { animate: true, duration: 1.5 });
                             }
                         }
@@ -187,7 +211,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     statusText.textContent = "Status: Scraping...";
                 }
 
-                if (data.status === 'completed' || data.status === 'error') {
+                if (data.status === 'completed' || data.status === 'error' || data.status === 'not_found') {
                     clearInterval(pollInterval);
                     pollInterval = null;
                     progressBar.classList.remove('active');
