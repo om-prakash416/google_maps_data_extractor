@@ -4,14 +4,24 @@ import queue
 import uuid
 import time
 import os
+import sys
+import subprocess
 import pandas as pd
 from scraper_engine import ScraperEngine
+
+# Ensure Playwright Chromium browser binary is installed on cloud space startup
+try:
+    print("Checking/Installing Playwright Chromium dependencies...")
+    subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
+except Exception as e:
+    print(f"Playwright chromium install note: {e}")
 
 try:
     from waitress import serve
     HAS_WAITRESS = True
 except ImportError:
     HAS_WAITRESS = False
+
 
 app = Flask(__name__)
 

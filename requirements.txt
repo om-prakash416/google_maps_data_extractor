@@ -8,4 +8,6 @@ waitress
 requests
 beautifulsoup4
 fake-useragent
+gradio
+
 
