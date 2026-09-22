@@ -11,10 +11,11 @@ from scraper_engine import ScraperEngine
 
 # Ensure Playwright Chromium browser binary is installed on cloud space startup
 try:
-    print("Checking/Installing Playwright Chromium dependencies...")
-    subprocess.run([sys.executable, "-m", "playwright", "install", "chromium"], check=False)
+    print("Checking/Installing Playwright Chromium and system dependencies...")
+    subprocess.run([sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"], check=False)
 except Exception as e:
     print(f"Playwright chromium install note: {e}")
+
 
 try:
     from waitress import serve
