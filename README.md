@@ -3,11 +3,12 @@ title: Gmaps Extractor
 emoji: 📍
 colorFrom: blue
 colorTo: purple
-sdk: gradio
-sdk_version: 4.21.0
+sdk: custom
+app_port: 7860
 app_file: app.py
 pinned: false
 ---
+
 
 
 
