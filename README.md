@@ -1,13 +1,14 @@
 ---
-title: Google Maps Data Extractor Pro
+title: Gmaps Extractor
 emoji: 📍
 colorFrom: blue
 colorTo: purple
-sdk: docker
-app_port: 7860
+sdk: gradio
+sdk_version: 4.21.0
 app_file: app.py
 pinned: false
 ---
+
 
 
 # Google Maps Data Extractor 📍
