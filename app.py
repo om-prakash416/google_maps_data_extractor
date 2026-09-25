@@ -211,17 +211,6 @@ def download_data(job_id, format_type):
         return "No data to download", 400
         
     os.makedirs('outputs', exist_ok=True)
-    df = pd.DataFrame(job['data'])
-    
-    # Filter columns based on selected fields
-    fields_param = request.args.get('fields', '')
-    if fields_param:
-        selected_fields = [f.strip() for f in fields_param.split(',') if f.strip()]
-        # Only keep columns that exist in the data and were selected
-        valid_fields = [f for f in selected_fields if f in df.columns]
-        if valid_fields:
-            df = df[valid_fields]
-    
     area_name = job.get('area', 'Extracted_Data').replace(',', '_').replace(' ', '')
     if len(area_name) > 30:
         area_name = area_name[:30] # Keep filename length reasonable
