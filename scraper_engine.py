@@ -26,7 +26,7 @@ def extract_website_details(url):
         
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36'}
-        with requests.get(url, headers=headers, timeout=2.0, verify=False, stream=True) as response:
+        with requests.get(url, headers=headers, timeout=(1.0, 2.0), verify=False, stream=True) as response:
             if response.status_code == 200:
                 raw_bytes = bytearray()
                 for chunk in response.iter_content(chunk_size=4096):
@@ -268,6 +268,8 @@ class ScraperEngine:
                         }""")
                         
                         safe_log(f"⭐ Found {len(places_to_scrape)} listings for '{current_area}'! Extracting details...")
+                        if len(places_to_scrape) < needed:
+                            safe_log(f"ℹ️ Note: Google Maps has only {len(places_to_scrape)} total listings for this search. (Tip: Add sub-areas/localities to reach {max_results}+).")
                         
                         for p_info in places_to_scrape:
                             if len(scraped_data) >= max_results:
