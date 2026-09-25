@@ -130,14 +130,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!currentJobId) return;
             pollCount++;
             
-            // Safety cap: stop polling after 30 minutes (600 polls of 3s)
-            if (pollCount > 600) {
+            // Safety cap: stop polling after 2.5 hours (3000 polls of 3s)
+            if (pollCount > 3000) {
                 clearInterval(pollInterval);
                 pollInterval = null;
                 progressBar.classList.remove('active');
                 statusText.textContent = "Status: Timeout";
                 statusDot.className = 'pulse-dot error';
-                appendLog("⚠️ Polling timeout reached (30 minutes). Stopping automatic updates.", 'error');
+                appendLog("⚠️ Polling timeout reached (2.5 hours). Stopping automatic updates.", 'error');
                 resetUI(false);
                 return;
             }
