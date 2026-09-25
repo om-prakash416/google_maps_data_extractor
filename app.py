@@ -15,9 +15,9 @@ except ImportError:
 
 from scraper_engine import ScraperEngine
 
-# Configure Playwright browser cache path
-PLAYWRIGHT_BROWSERS_PATH = os.path.expanduser("~/.cache/ms-playwright")
-os.environ["PLAYWRIGHT_BROWSERS_PATH"] = PLAYWRIGHT_BROWSERS_PATH
+# Configure Playwright browser cache path (Linux/Cloud environments only)
+if sys.platform != "win32" and "PLAYWRIGHT_BROWSERS_PATH" not in os.environ:
+    os.environ["PLAYWRIGHT_BROWSERS_PATH"] = os.path.expanduser("~/.cache/ms-playwright")
 
 try:
     from waitress import serve
