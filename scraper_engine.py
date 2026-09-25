@@ -23,7 +23,7 @@ def extract_website_details(url):
         
     try:
         headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36'}
-        with requests.get(url, headers=headers, timeout=2.0, verify=False, stream=True) as response:
+        with requests.get(url, headers=headers, timeout=1.0, verify=False, stream=True) as response:
             if response.status_code == 200:
                 raw_bytes = bytearray()
                 for chunk in response.iter_content(chunk_size=4096):
@@ -202,7 +202,7 @@ class ScraperEngine:
                             if len(scraped_data) >= max_results:
                                 break
                         
-                        if len(place_elements) >= max_results + 15:
+                        if len(place_elements) >= max_results + 5:
                             break
                         
                         if len(place_elements) == previous_count:
@@ -214,7 +214,7 @@ class ScraperEngine:
                                 page.evaluate("document.querySelector('div[role=\"feed\"]').scrollBy(0, 15000)")
                             except Exception:
                                 page.mouse.wheel(0, 5000)
-                            time.sleep(2.0)
+                            time.sleep(1.2)
                             scroll_attempts += 1
                         else:
                             scroll_attempts = 0
@@ -222,7 +222,7 @@ class ScraperEngine:
                             
                     safe_log(f"⭐ Extracting up to {min(len(place_elements), max_results)} listings from '{search_term}'...")
                     
-                    for element in place_elements:
+                    for idx, element in enumerate(place_elements):
                         with data_lock:
                             if len(scraped_data) >= max_results:
                                 break
@@ -241,8 +241,17 @@ class ScraperEngine:
                                     continue
                                 seen_urls.add(base_url)
 
-                            element.click()
-                            time.sleep(2.0)
+                            # Fast, non-blocking click: Scroll & JS click to avoid Playwright 30s actionability timeout
+                            try:
+                                element.scroll_into_view_if_needed(timeout=600)
+                                element.click(timeout=1000, force=True)
+                            except Exception:
+                                try:
+                                    element.evaluate("el => el.click()")
+                                except Exception:
+                                    continue
+                                    
+                            time.sleep(0.8)
                             
                             name = element.get_attribute('aria-label') or "N/A"
                             current_url = page.url
@@ -259,7 +268,7 @@ class ScraperEngine:
                             address, phone, website = "N/A", "N/A", "N/A"
                             
                             try:
-                                page.wait_for_selector('button[data-item-id="address"]', timeout=2000)
+                                page.wait_for_selector('button[data-item-id="address"]', timeout=800)
                             except:
                                 pass
                             
