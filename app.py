@@ -6,7 +6,12 @@ import time
 import os
 import sys
 import subprocess
-import pandas as pd
+import csv
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+
 from scraper_engine import ScraperEngine
 
 # Ensure Playwright Chromium browser binary is installed on cloud space startup
@@ -240,15 +245,40 @@ def download_data(job_id, format_type):
                 'assign_id': '',
                 'status': '1'
             })
-        df_hisgro = pd.DataFrame(hisgro_data)
         filepath = f"outputs/data_{job_id}_hisgro.csv"
-        df_hisgro.to_csv(filepath, index=False)
+        if hisgro_data:
+            keys = list(hisgro_data[0].keys())
+            with open(filepath, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=keys)
+                writer.writeheader()
+                writer.writerows(hisgro_data)
         return send_file(filepath, as_attachment=True, download_name=f"{area_name}_Hisgro.csv")
     elif format_type == 'csv':
         filepath = f"outputs/data_{job_id}.csv"
-        df.to_csv(filepath, index=False)
+        records = job['data']
+        fields_param = request.args.get('fields', '')
+        if records:
+            all_keys = list(records[0].keys())
+            if fields_param:
+                selected_fields = [f.strip() for f in fields_param.split(',') if f.strip()]
+                valid_fields = [f for f in selected_fields if f in all_keys]
+                if valid_fields:
+                    all_keys = valid_fields
+            with open(filepath, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=all_keys, extrasaction='ignore')
+                writer.writeheader()
+                writer.writerows(records)
         return send_file(filepath, as_attachment=True, download_name=f"{area_name}.csv")
     elif format_type in ['xlsx', 'xls']:
+        if pd is None:
+            return "Excel export requires pandas/openpyxl which is disabled to save RAM. Please download as CSV.", 400
+        df = pd.DataFrame(job['data'])
+        fields_param = request.args.get('fields', '')
+        if fields_param:
+            selected_fields = [f.strip() for f in fields_param.split(',') if f.strip()]
+            valid_fields = [f for f in selected_fields if f in df.columns]
+            if valid_fields:
+                df = df[valid_fields]
         filepath = f"outputs/data_{job_id}.{format_type}"
         df.to_excel(filepath, index=False)
         return send_file(filepath, as_attachment=True, download_name=f"{area_name}.{format_type}")

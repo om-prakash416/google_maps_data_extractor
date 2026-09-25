@@ -1,4 +1,9 @@
-import pandas as pd
+import csv
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
+
 from playwright.sync_api import sync_playwright
 import time
 import re
@@ -130,10 +135,20 @@ if __name__ == "__main__":
     data = scrape_saloons(area, max_results=num_results)
     
     if data:
-        # Convert to pandas DataFrame and save to Excel
-        df = pd.DataFrame(data)
-        excel_filename = f"Saloons_{area.replace(' ', '_')}.xlsx"
-        df.to_excel(excel_filename, index=False)
-        print(f"\n✅ Data successfully saved to {excel_filename}")
+        if pd is not None:
+            # Convert to pandas DataFrame and save to Excel
+            df = pd.DataFrame(data)
+            excel_filename = f"Saloons_{area.replace(' ', '_')}.xlsx"
+            df.to_excel(excel_filename, index=False)
+            print(f"\n✅ Data successfully saved to {excel_filename}")
+        else:
+            # Fallback to built-in csv when pandas is absent
+            csv_filename = f"Saloons_{area.replace(' ', '_')}.csv"
+            keys = list(data[0].keys())
+            with open(csv_filename, 'w', newline='', encoding='utf-8') as f:
+                writer = csv.DictWriter(f, fieldnames=keys)
+                writer.writeheader()
+                writer.writerows(data)
+            print(f"\n✅ Data successfully saved to {csv_filename} (CSV format)")
     else:
         print("\n❌ No data was found or extracted.")
