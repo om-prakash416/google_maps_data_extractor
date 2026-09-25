@@ -131,7 +131,7 @@ def start_scrape():
         
     try:
         max_results = int(max_results)
-        max_threads = min(int(max_threads), 2) # Cap at 2 threads max to preserve RAM
+        max_threads = 1 # Cap at 1 thread to strictly preserve 512MB RAM on cloud hosts
     except ValueError:
         return jsonify({"error": "Max Results and Max Threads must be numbers"}), 400
 

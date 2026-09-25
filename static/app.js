@@ -119,10 +119,12 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     let pollCount = 0;
+    let retryFailures = 0;
 
     function startPolling() {
         if (pollInterval) clearInterval(pollInterval);
         pollCount = 0;
+        retryFailures = 0;
         
         pollInterval = setInterval(async () => {
             if (!currentJobId) return;
@@ -157,6 +159,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
                 
                 const data = await res.json();
+                retryFailures = 0; // Reset retry counter on success
                 
                 // Print logs
                 if (data.logs && data.logs.length > 0) {
@@ -231,6 +234,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 }
             } catch (err) {
                 console.error("Polling error:", err);
+                retryFailures++;
+                if (retryFailures <= 5) {
+                    appendLog(`⚠️ Network lag, retrying connection (${retryFailures}/5)...`, 'normal');
+                    return;
+                }
                 clearInterval(pollInterval);
                 pollInterval = null;
                 progressBar.classList.remove('active');

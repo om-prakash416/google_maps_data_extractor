@@ -11,6 +11,8 @@ from fake_useragent import UserAgent
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import threading
 
+import gc
+
 # Suppress SSL warnings for fast website email extraction
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
@@ -20,33 +22,36 @@ def extract_website_details(url):
         return details
         
     try:
-        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/122.0.0.0 Safari/537.36'}
-        response = requests.get(url, headers=headers, timeout=2.5, verify=False)
-        
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            html_text = soup.get_text(separator=' ')
-            
-            # Extract Emails using Regex
-            emails = set(re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', html_text))
-            if emails:
-                # Filter out obvious false positives
-                valid_emails = [e for e in emails if not e.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.css', '.js', '.svg'))]
-                if valid_emails:
-                    details["Emails"] = ", ".join(list(valid_emails)[:3])
-                    
-            # Extract Social Links
-            for link in soup.find_all('a', href=True):
-                href = link['href'].lower()
-                if 'facebook.com' in href and details["Facebook"] == "N/A":
-                    details["Facebook"] = link['href']
-                elif 'instagram.com' in href and details["Instagram"] == "N/A":
-                    details["Instagram"] = link['href']
-                elif 'linkedin.com' in href and details["LinkedIn"] == "N/A":
-                    details["LinkedIn"] = link['href']
-                elif 'youtube.com' in href and details["YouTube"] == "N/A":
-                    details["YouTube"] = link['href']
-                    
+        headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/122.0.0.0 Safari/537.36'}
+        with requests.get(url, headers=headers, timeout=2.0, verify=False, stream=True) as response:
+            if response.status_code == 200:
+                raw_bytes = bytearray()
+                for chunk in response.iter_content(chunk_size=4096):
+                    raw_bytes.extend(chunk)
+                    if len(raw_bytes) > 65536: # read max 64 KB
+                        break
+                html_text = raw_bytes.decode('utf-8', errors='ignore')
+                soup = BeautifulSoup(html_text, 'html.parser')
+                text_content = soup.get_text(separator=' ')
+                
+                # Extract Emails using Regex
+                emails = set(re.findall(r'[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+', text_content))
+                if emails:
+                    valid_emails = [e for e in emails if not e.endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp', '.css', '.js', '.svg'))]
+                    if valid_emails:
+                        details["Emails"] = ", ".join(list(valid_emails)[:3])
+                        
+                # Extract Social Links
+                for link in soup.find_all('a', href=True):
+                    href = link['href'].lower()
+                    if 'facebook.com' in href and details["Facebook"] == "N/A":
+                        details["Facebook"] = link['href']
+                    elif 'instagram.com' in href and details["Instagram"] == "N/A":
+                        details["Instagram"] = link['href']
+                    elif 'linkedin.com' in href and details["LinkedIn"] == "N/A":
+                        details["LinkedIn"] = link['href']
+                    elif 'youtube.com' in href and details["YouTube"] == "N/A":
+                        details["YouTube"] = link['href']
     except Exception:
         pass
         
@@ -64,8 +69,8 @@ class ScraperEngine:
         seen_urls = set()
         data_lock = threading.Lock()
         
-        # Clamp threads to max 2 to prevent RAM exhaustion on HF Spaces
-        max_threads = max(1, min(int(max_threads), 2))
+        # Strictly limit to 1 thread in cloud environments to prevent running out of 512MB RAM
+        max_threads = 1
         
         def safe_log(msg):
             if log_callback:
@@ -90,7 +95,29 @@ class ScraperEngine:
                         '--disable-extensions',
                         '--no-first-run',
                         '--no-zygote',
-                        '--js-flags=--max-old-space-size=256'
+                        '--single-process',
+                        '--disable-background-networking',
+                        '--disable-background-timer-throttling',
+                        '--disable-backgrounding-occluded-windows',
+                        '--disable-breakpad',
+                        '--disable-client-side-phishing-detection',
+                        '--disable-component-update',
+                        '--disable-default-apps',
+                        '--disable-domain-reliability',
+                        '--disable-features=AudioServiceOutOfProcess,IsolateOrigins,site-per-process',
+                        '--disable-ipc-flooding-protection',
+                        '--disable-notifications',
+                        '--disable-popup-blocking',
+                        '--disable-print-preview',
+                        '--disable-renderer-backgrounding',
+                        '--disable-sync',
+                        '--hide-scrollbars',
+                        '--mute-audio',
+                        '--no-default-browser-check',
+                        '--no-pings',
+                        '--password-store=basic',
+                        '--use-gl=swiftshader',
+                        '--js-flags=--max-old-space-size=128'
                     ]
                     
                     browser_options = {
@@ -108,12 +135,18 @@ class ScraperEngine:
                     context = browser.new_context(
                         locale="en-US", 
                         user_agent=desktop_ua,
-                        viewport={"width": 1920, "height": 1080}
+                        viewport={"width": 800, "height": 600}
                     )
                     
                     def handle_route(route):
                         try:
-                            if route.request.resource_type in ["image", "media", "font"]:
+                            req_url = route.request.url.lower()
+                            if (route.request.resource_type in ["image", "media", "font"] or 
+                                "google-analytics" in req_url or 
+                                "doubleclick" in req_url or 
+                                "/vt/data=" in req_url or 
+                                "play.google.com" in req_url or 
+                                "streetviewpixels" in req_url):
                                 route.abort()
                             else:
                                 route.continue_()
@@ -268,6 +301,10 @@ class ScraperEngine:
                                     "Maps URL": current_url
                                 })
                                 safe_log(f"   [{len(scraped_data)}/{max_results}] Extracted: {name}")
+                                
+                                # Garbage collect every 2 items to prevent memory build-up in 512MB RAM
+                                if len(scraped_data) % 2 == 0:
+                                    gc.collect()
                             
                         except Exception:
                             pass
