@@ -158,7 +158,9 @@ class ScraperEngine:
                     
                     search_term = f"{current_query} in {current_area}".strip()
                     if pincode and str(pincode).strip():
-                        search_term += f" {str(pincode).strip()}"
+                        p_clean = str(pincode).strip()
+                        if p_clean not in current_area:
+                            search_term += f" {p_clean}"
                         
                     encoded_query = urllib.parse.quote(search_term)
                     search_url = f"https://www.google.com/maps/search/{encoded_query}"
@@ -189,40 +191,56 @@ class ScraperEngine:
                         
                     previous_count = 0
                     scroll_attempts = 0
-                    place_elements = []
                     
                     safe_log(f"🔄 Scrolling results for '{search_term}'...")
-                    while scroll_attempts < 12:
+                    while scroll_attempts < 10:
                         if stop_check and stop_check():
                             break
                             
-                        place_elements = page.locator('a[href*="/maps/place/"]').all()
+                        # Quick JS check of currently loaded links
+                        try:
+                            current_count = page.evaluate("() => document.querySelectorAll('a[href*=\"/maps/place/\"]').length")
+                        except Exception:
+                            current_count = 0
                         
-                        with data_lock:
-                            if len(scraped_data) >= max_results:
-                                break
-                        
-                        if len(place_elements) >= max_results + 5:
+                        if current_count >= max_results:
                             break
-                        
-                        if len(place_elements) == previous_count:
+                            
+                        if current_count == previous_count:
                             try:
-                                page.hover('div[role="feed"]')
-                            except Exception:
-                                pass
-                            try:
-                                page.evaluate("document.querySelector('div[role=\"feed\"]').scrollBy(0, 15000)")
+                                page.evaluate("document.querySelector('div[role=\"feed\"]').scrollBy(0, 10000)")
                             except Exception:
                                 page.mouse.wheel(0, 5000)
-                            time.sleep(1.2)
+                            time.sleep(1.0)
                             scroll_attempts += 1
                         else:
                             scroll_attempts = 0
-                            previous_count = len(place_elements)
-                            
-                    safe_log(f"⭐ Extracting up to {min(len(place_elements), max_results)} listings from '{search_term}'...")
+                            previous_count = current_count
+                            try:
+                                page.evaluate("document.querySelector('div[role=\"feed\"]').scrollBy(0, 10000)")
+                            except Exception:
+                                pass
+                            time.sleep(0.8)
+
+                    # Extract all place URLs and Names using JS in 5ms (no stale handles, no 30s timeouts)
+                    places_to_scrape = page.evaluate("""() => {
+                        const links = Array.from(document.querySelectorAll('a[href*="/maps/place/"]'));
+                        const results = [];
+                        const seen = new Set();
+                        for (const link of links) {
+                            const href = link.href;
+                            const name = link.getAttribute('aria-label') || link.innerText.trim();
+                            if (href && name && !seen.has(href)) {
+                                seen.add(href);
+                                results.push({ name: name, url: href });
+                            }
+                        }
+                        return results;
+                    }""")
                     
-                    for idx, element in enumerate(place_elements):
+                    safe_log(f"⭐ Found {len(places_to_scrape)} listings! Extracting up to {max_results}...")
+                    
+                    for p_info in places_to_scrape:
                         with data_lock:
                             if len(scraped_data) >= max_results:
                                 break
@@ -231,31 +249,26 @@ class ScraperEngine:
                             break
                             
                         try:
-                            url = element.get_attribute('href')
-                            if not url:
+                            place_url = p_info.get('url', '')
+                            name = p_info.get('name', 'N/A')
+                            if not place_url:
                                 continue
                             
-                            base_url = url.split('?')[0].split('/data=')[0]
+                            base_url = place_url.split('?')[0].split('/data=')[0]
                             with data_lock:
                                 if base_url in seen_urls:
                                     continue
                                 seen_urls.add(base_url)
 
-                            # Fast, non-blocking click: Scroll & JS click to avoid Playwright 30s actionability timeout
+                            # Fast direct navigation in 0.8s (never gets blocked or detached)
                             try:
-                                element.scroll_into_view_if_needed(timeout=600)
-                                element.click(timeout=1000, force=True)
+                                page.goto(place_url, wait_until='domcontentloaded', timeout=12000)
                             except Exception:
-                                try:
-                                    element.evaluate("el => el.click()")
-                                except Exception:
-                                    continue
-                                    
-                            time.sleep(0.8)
+                                pass
+                                
+                            time.sleep(0.5)
                             
-                            name = element.get_attribute('aria-label') or "N/A"
                             current_url = page.url
-                            
                             lat, lon = "", ""
                             coord_match = re.search(r'!3d(-?\d+\.\d+)!4d(-?\d+\.\d+)', current_url)
                             if coord_match:
@@ -267,14 +280,10 @@ class ScraperEngine:
 
                             address, phone, website = "N/A", "N/A", "N/A"
                             
-                            try:
-                                page.wait_for_selector('button[data-item-id="address"]', timeout=800)
-                            except:
-                                pass
-                            
                             address_element = page.query_selector('button[data-item-id="address"]')
                             if address_element:
-                                address = address_element.inner_text().strip()
+                                raw_addr = address_element.inner_text().replace('\n', ' ').strip()
+                                address = re.sub(r'[\ue000-\uf8ff]', '', raw_addr).strip()
                                 
                             if pincode and str(pincode).strip():
                                 p_str = str(pincode).strip()
@@ -284,7 +293,8 @@ class ScraperEngine:
                             
                             phone_element = page.query_selector('button[data-item-id^="phone:"]')
                             if phone_element:
-                                phone = phone_element.inner_text().strip().replace('\n', '')
+                                raw_phone = phone_element.inner_text().strip().replace('\n', '')
+                                phone = re.sub(r'[\ue000-\uf8ff]', '', raw_phone).strip()
 
                             website_element = page.query_selector('a[data-item-id="authority"]')
                             if website_element:
