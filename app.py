@@ -14,12 +14,9 @@ except ImportError:
 
 from scraper_engine import ScraperEngine
 
-# Ensure Playwright Chromium browser binary is installed on cloud space startup
-try:
-    print("Checking/Installing Playwright Chromium and system dependencies...")
-    subprocess.run([sys.executable, "-m", "playwright", "install", "--with-deps", "chromium"], check=False)
-except Exception as e:
-    print(f"Playwright chromium install note: {e}")
+# Configure Playwright browser cache path
+PLAYWRIGHT_BROWSERS_PATH = os.path.expanduser("~/.cache/ms-playwright")
+os.environ["PLAYWRIGHT_BROWSERS_PATH"] = PLAYWRIGHT_BROWSERS_PATH
 
 
 try:
