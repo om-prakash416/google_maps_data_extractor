@@ -82,6 +82,18 @@
                 </div>
 
                 <div class="input-group">
+                    <label for="phone_filter">
+                        Phone Number Filter
+                        <span class="info-icon" title="Choose whether to include all results or only listings that have a phone number">ℹ️</span>
+                    </label>
+                    <select id="phone_filter" name="phone_filter">
+                        <option value="all">Include All (With & Without Phone)</option>
+                        <option value="only_with_phone">Only With Phone Number (Skip N/A)</option>
+                        <option value="without_phone">Only Without Phone Number</option>
+                    </select>
+                </div>
+
+                <div class="input-group">
                     <label for="max_results">Max Results to Extract</label>
                     <input type="number" id="max_results" name="max_results" value="20" required>
                 </div>
@@ -110,7 +122,10 @@
                     <span>▶</span> Start Scraping
                 </button>
                 <button type="button" class="btn-danger" id="stop-btn" disabled>
-                    <span>⏹</span> Stop
+                    <span>⏹</span> Stop & Save Current Data
+                </button>
+                <button type="button" class="btn-secondary" id="reset-btn" style="display: none; margin-top: 0.5rem; width: 100%;">
+                    <span>🔄</span> Start New Search / Clear
                 </button>
             </form>
 
@@ -129,9 +144,14 @@
                         <span class="pulse-dot" id="status-dot"></span>
                         <h2 id="status-text">Status: Ready</h2>
                     </div>
-                    <button id="help-btn" class="help-icon-btn" aria-label="Help Guide">
-                        ℹ️ Help
-                    </button>
+                    <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+                        <a href="/" target="_blank" class="new-tab-btn" title="Open a new independent tab to scrape another query simultaneously">
+                            ➕ New Scraper Tab
+                        </a>
+                        <button id="help-btn" class="help-icon-btn" aria-label="Help Guide">
+                            ℹ️ Help
+                        </button>
+                    </div>
                 </div>
                 <div class="progress-bar-container">
                     <div class="progress-bar" id="progress-bar"></div>
@@ -173,7 +193,13 @@
             </div>
 
             <div class="export-card disabled" id="export-card">
-                <h3>Download Results</h3>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                    <h3 style="margin: 0;">Download Extracted Data</h3>
+                    <span id="export-count-badge" class="badge-leads">0 leads ready</span>
+                </div>
+                <p class="export-hint">
+                    🛡️ <strong>Auto-Save Active:</strong> You can download whenever you want. Even if network drops or you refresh the page, your extracted data will never be lost.
+                </p>
                 
                 <div class="field-selection">
                     <label class="field-selection-title">
@@ -202,7 +228,6 @@
                     <button class="btn-export btn-csv" data-format="csv">📄 CSV</button>
                     <button class="btn-export btn-xlsx" data-format="xlsx">📊 XLSX</button>
                     <button class="btn-export btn-xls" data-format="xls">📉 XLS</button>
-                    <button class="btn-export btn-hisgro" data-format="hisgro" style="background-color: #4f46e5; color: white;">🏨 Hisgro Format (CSV)</button>
                 </div>
             </div>
             

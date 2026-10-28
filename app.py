@@ -33,8 +33,8 @@ JOBS_DIR = os.path.join(STORAGE_DIR, 'jobs')
 os.makedirs(STORAGE_DIR, exist_ok=True)
 os.makedirs(JOBS_DIR, exist_ok=True)
 
-# Concurrency configuration: 2 workers for 3-core / 11GB RAM server
-NUM_WORKERS = 2
+# Concurrency configuration: 8 parallel workers for multi-tab scraping
+NUM_WORKERS = int(os.environ.get('NUM_WORKERS', 8))
 job_queue = queue.Queue()
 active_jobs = {}
 jobs_lock = threading.Lock()
@@ -55,9 +55,11 @@ def save_job_to_disk(job_id):
             'status': job['status'],
             'area': job.get('area', ''),
             'pincode': job.get('pincode', ''),
+            'phone_filter': job.get('phone_filter', 'all'),
             'created_at': job.get('created_at', time.time()),
             'last_updated': time.time(),
             'data': job.get('data', []),
+            'all_logs': job.get('all_logs', [])[-80:],
             'results_count': len(job.get('data', []))
         }
     
@@ -105,12 +107,15 @@ def load_jobs_from_disk():
             active_jobs[job_id] = {
                 'status': status,
                 'logs': logs,
+                'all_logs': data.get('all_logs', logs),
                 'data': data.get('data', []),
                 'stop_flag': True,
                 'area': data.get('area', 'Extracted_Data'),
                 'pincode': data.get('pincode', ''),
+                'phone_filter': data.get('phone_filter', 'all'),
                 'last_sent_index': 0,
-                'created_at': data.get('created_at', now)
+                'created_at': data.get('created_at', now),
+                'last_updated': data.get('last_updated', now)
             }
         except Exception as e:
             print(f"[Load Error] Failed reading {fname}: {e}")
@@ -136,6 +141,11 @@ def worker_thread(worker_id):
             with jobs_lock:
                 if job_id in active_jobs:
                     active_jobs[job_id]['logs'].append(msg)
+                    if 'all_logs' not in active_jobs[job_id]:
+                        active_jobs[job_id]['all_logs'] = []
+                    active_jobs[job_id]['all_logs'].append(msg)
+                    if len(active_jobs[job_id]['all_logs']) > 150:
+                        active_jobs[job_id]['all_logs'] = active_jobs[job_id]['all_logs'][-150:]
                     
         def stop_check():
             with jobs_lock:
@@ -144,14 +154,12 @@ def worker_thread(worker_id):
                 return True
 
         def data_callback(item):
-            """Real-time data streaming: live table gets rows immediately."""
+            """Real-time data streaming & immediate disk persistence: zero data loss."""
             with jobs_lock:
                 if job_id in active_jobs:
                     active_jobs[job_id]['data'].append(item)
-            # Periodic flush to disk every 5 items
-            current_count = len(active_jobs[job_id]['data'])
-            if current_count % 5 == 0:
-                save_job_to_disk(job_id)
+                    active_jobs[job_id]['last_updated'] = time.time()
+            save_job_to_disk(job_id)
                 
         try:
             data = engine.run(
@@ -159,6 +167,7 @@ def worker_thread(worker_id):
                 area=job['area'],
                 pincode=job.get('pincode', ''),
                 radius=job.get('radius', ''),
+                phone_filter=job.get('phone_filter', 'all'),
                 max_results=job['max_results'],
                 max_threads=1,
                 proxy=job.get('proxy', None),
@@ -247,6 +256,7 @@ def start_scrape():
     area = req.get('area')
     pincode = req.get('pincode', '')
     radius = req.get('radius', '')
+    phone_filter = req.get('phone_filter', 'all').strip()
     max_results = req.get('max_results', 20)
     max_threads = req.get('max_threads', 2)
     proxy = req.get('proxy', '').strip()
@@ -266,12 +276,15 @@ def start_scrape():
         active_jobs[job_id] = {
             'status': 'queued',
             'logs': [f"📋 Job queued. Position in queue: {queue_pos}"],
+            'all_logs': [f"📋 Job queued. Position in queue: {queue_pos}"],
             'data': [],
             'stop_flag': False,
             'area': area,
             'pincode': pincode,
+            'phone_filter': phone_filter,
             'last_sent_index': 0,
-            'created_at': time.time()
+            'created_at': time.time(),
+            'last_updated': time.time()
         }
     
     save_job_to_disk(job_id)
@@ -282,6 +295,7 @@ def start_scrape():
         'area': area,
         'pincode': pincode,
         'radius': radius,
+        'phone_filter': phone_filter,
         'max_results': max_results,
         'max_threads': 1,
         'proxy': proxy if proxy else None
@@ -326,13 +340,21 @@ def check_status(job_id):
             }), 404
             
         job = active_jobs[job_id]
-        logs_to_send = list(job['logs'])
-        job['logs'].clear()
         
-        last_idx = job.get('last_sent_index', 0)
+        full_request = request.args.get('full', '0') == '1'
         current_data = job['data']
-        new_data = current_data[last_idx:]
-        job['last_sent_index'] = len(current_data)
+        
+        if full_request:
+            new_data = list(current_data)
+            logs_to_send = list(job.get('all_logs', job.get('logs', [])))
+            job['last_sent_index'] = len(current_data)
+        else:
+            last_idx = job.get('last_sent_index', 0)
+            new_data = current_data[last_idx:]
+            job['last_sent_index'] = len(current_data)
+            logs_to_send = list(job.get('logs', []))
+            job['logs'].clear()
+            
         current_status = job['status']
         results_count = len(current_data)
     
@@ -342,6 +364,27 @@ def check_status(job_id):
         "new_data": new_data,
         "results_count": results_count
     })
+
+
+@app.route('/api/latest_job', methods=['GET'])
+def get_latest_job():
+    with jobs_lock:
+        if not active_jobs:
+            return jsonify({"job_id": None})
+        sorted_jobs = sorted(
+            active_jobs.items(),
+            key=lambda x: x[1].get('last_updated', x[1].get('created_at', 0)),
+            reverse=True
+        )
+        for jid, jinfo in sorted_jobs:
+            if jinfo.get('data') or jinfo.get('status') in ['running', 'queued']:
+                return jsonify({
+                    "job_id": jid,
+                    "status": jinfo.get('status'),
+                    "results_count": len(jinfo.get('data', [])),
+                    "area": jinfo.get('area', '')
+                })
+        return jsonify({"job_id": None})
 
 
 @app.route('/api/stop/<job_id>', methods=['POST'])
@@ -363,9 +406,22 @@ def download_data(job_id, format_type):
         records = list(job['data'])
         area_name = job.get('area', 'Extracted_Data').replace(',', '_').replace(' ', '')
         pincode_val = job.get('pincode', '')
+        saved_phone_filter = job.get('phone_filter', 'all')
+
+    filter_mode = request.args.get('phone_filter', saved_phone_filter).strip()
+    if filter_mode == 'only_with_phone':
+        records = [
+            r for r in records
+            if r.get('Phone') and str(r.get('Phone')).strip().upper() not in ['N/A', 'NONE', 'NULL', '']
+        ]
+    elif filter_mode == 'without_phone':
+        records = [
+            r for r in records
+            if not r.get('Phone') or str(r.get('Phone')).strip().upper() in ['N/A', 'NONE', 'NULL', '']
+        ]
 
     if not records:
-        return "No data to download", 400
+        return "No data matching the filter to download", 400
         
     if len(area_name) > 30:
         area_name = area_name[:30]

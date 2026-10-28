@@ -56,20 +56,29 @@ class ScraperApp(ctk.CTk):
         self.radius_entry = ctk.CTkEntry(self.sidebar_frame, placeholder_text="Radius (km) - Optional", width=250, height=40, corner_radius=8)
         self.radius_entry.grid(row=4, column=0, padx=20, pady=10)
         
+        self.phone_filter_option = ctk.CTkOptionMenu(
+            self.sidebar_frame,
+            values=["All Results", "Only With Phone", "Without Phone Only"],
+            width=250,
+            height=40,
+            corner_radius=8
+        )
+        self.phone_filter_option.grid(row=5, column=0, padx=20, pady=10)
+        
         self.count_entry = ctk.CTkEntry(self.sidebar_frame, placeholder_text="Max Results (e.g. 50)", width=250, height=40, corner_radius=8)
         self.count_entry.insert(0, "20")
-        self.count_entry.grid(row=5, column=0, padx=20, pady=10)
+        self.count_entry.grid(row=6, column=0, padx=20, pady=10)
         
         # Action Buttons
         self.start_btn = ctk.CTkButton(self.sidebar_frame, text="▶ Start Scraping", command=self.start_scraping_thread, height=45, width=250, corner_radius=8, font=ctk.CTkFont(weight="bold", size=15), fg_color="#0f3460", hover_color="#1a1a2e")
-        self.start_btn.grid(row=6, column=0, padx=20, pady=(20, 10))
+        self.start_btn.grid(row=7, column=0, padx=20, pady=(20, 10))
         
         self.stop_btn = ctk.CTkButton(self.sidebar_frame, text="⏹ Stop", command=self.stop_scraping, height=45, width=250, corner_radius=8, font=ctk.CTkFont(weight="bold", size=15), fg_color="#e94560", hover_color="#c81d3d", state="disabled")
-        self.stop_btn.grid(row=7, column=0, padx=20, pady=(0, 20), sticky="n")
+        self.stop_btn.grid(row=8, column=0, padx=20, pady=(0, 20), sticky="n")
 
         # Footer
         self.footer_label = ctk.CTkLabel(self.sidebar_frame, text="Made by Om Prakash\n(GitHub: om-prakash416)", font=ctk.CTkFont(size=12, weight="bold"), text_color="#0f3460")
-        self.footer_label.grid(row=8, column=0, padx=20, pady=20, sticky="s")
+        self.footer_label.grid(row=9, column=0, padx=20, pady=20, sticky="s")
 
         # --- MAIN AREA (Right) ---
         self.main_frame = ctk.CTkFrame(self, fg_color="transparent")
@@ -194,20 +203,21 @@ class ScraperApp(ctk.CTk):
         if radius_str and radius_str.isdigit():
             search_term += f" within {radius_str} km"
         
+        phone_filter = self.phone_filter_option.get()
         self.is_stopped = False
         self.scraped_data = []
         self.set_export_buttons_state("disabled")
         self.start_btn.configure(state="disabled")
         self.stop_btn.configure(state="normal")
         self.progress.start()
-        self.log(f"🚀 Started! Searching for: '{search_term}'")
+        self.log(f"🚀 Started! Searching for: '{search_term}' (Filter: {phone_filter})")
         self.update_status("Status: Scraping...", color="#e94560")
         
-        threading.Thread(target=self.run_scraper, args=(search_term, max_results, area, query), daemon=True).start()
+        threading.Thread(target=self.run_scraper, args=(search_term, max_results, area, query, phone_filter), daemon=True).start()
 
-    def run_scraper(self, search_term, max_results, area, query):
+    def run_scraper(self, search_term, max_results, area, query, phone_filter="All Results"):
         try:
-            data = self.scrape_google_maps(search_term, max_results)
+            data = self.scrape_google_maps(search_term, max_results, phone_filter)
             self.scraped_data = data
             if data:
                 self.log(f"✅ Extracted {len(data)} items. You can now download the data.")
@@ -223,7 +233,7 @@ class ScraperApp(ctk.CTk):
             self.after(0, lambda: self.progress.set(0))
             self.after(0, lambda: self.update_status("Status: Completed", color="#43d590"))
 
-    def scrape_google_maps(self, search_query, max_results):
+    def scrape_google_maps(self, search_query, max_results, phone_filter="All Results"):
         scraped_data = []
         with sync_playwright() as p:
             self.log("🌐 Opening Browser in Background (Hidden)...")
@@ -308,6 +318,14 @@ class ScraperApp(ctk.CTk):
                     phone_element = page.query_selector('button[data-item-id^="phone:"]')
                     if phone_element:
                         phone = phone_element.inner_text().strip().replace('\n', '')
+
+                    has_phone = bool(phone and phone.strip() and phone.strip().upper() not in ["N/A", "NONE", "NULL", ""])
+                    if phone_filter == "Only With Phone" and not has_phone:
+                        self.log(f"   ⏩ Skipping: {name} (No phone number)")
+                        continue
+                    elif phone_filter == "Without Phone Only" and has_phone:
+                        self.log(f"   ⏩ Skipping: {name} (Has phone number)")
+                        continue
 
                     website_element = page.query_selector('a[data-item-id="authority"]')
                     if website_element:

@@ -238,7 +238,7 @@ h1 {
     letter-spacing: 0.5px;
 }
 
-input {
+input, select {
     width: 100%;
     padding: 0.85rem 1.25rem;
     background: var(--input-bg);
@@ -251,15 +251,41 @@ input {
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-input:hover {
-    background: #f1f5f9;
+select {
+    cursor: pointer;
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    padding-right: 2.5rem;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 1rem center;
+    background-size: 16px;
 }
 
-input:focus {
+select option {
+    background: var(--card-bg);
+    color: var(--text-main);
+    padding: 0.5rem;
+}
+
+input:hover, select:hover {
+    background-color: #f1f5f9;
+}
+
+[data-theme="dark"] select:hover {
+    background-color: #1e293b;
+}
+
+input:focus, select:focus {
     outline: none;
-    background: #ffffff;
+    background-color: #ffffff;
     border-color: var(--primary-color);
     box-shadow: 0 0 0 4px rgba(79, 70, 229, 0.15);
+}
+
+[data-theme="dark"] input:focus, [data-theme="dark"] select:focus {
+    background-color: #0f172a;
 }
 
 input::placeholder {
@@ -1067,4 +1093,70 @@ h2 {
 
 .modal-body a:hover {
     text-decoration: underline;
+}
+
+/* Auto-Save & Persistent Leads Styles */
+.badge-leads {
+    background: rgba(16, 185, 129, 0.15);
+    color: #10b981;
+    font-weight: 700;
+    font-size: 0.85rem;
+    padding: 0.35rem 0.85rem;
+    border-radius: 999px;
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    animation: fadeIn 0.3s ease;
+}
+
+.export-hint {
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    margin-bottom: 1.25rem;
+    line-height: 1.5;
+}
+
+.btn-secondary {
+    background: transparent;
+    border: 1px dashed var(--border-color);
+    color: var(--text-muted);
+    font-size: 0.9rem;
+    padding: 0.75rem;
+    border-radius: 12px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.btn-secondary:hover {
+    border-color: var(--primary-color);
+    color: var(--text-main);
+    background: rgba(79, 70, 229, 0.08);
+}
+
+.new-tab-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.5rem 0.9rem;
+    background: rgba(79, 70, 229, 0.1);
+    color: var(--primary-color);
+    border: 1px solid rgba(79, 70, 229, 0.3);
+    border-radius: 8px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.new-tab-btn:hover {
+    background: var(--primary-color);
+    color: #ffffff;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 6px -1px rgba(79, 70, 229, 0.2);
 }

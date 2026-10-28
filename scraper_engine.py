@@ -69,7 +69,7 @@ class ScraperEngine:
         self.headless = headless
 
     def run(self, query, area, radius="", max_results=20, max_threads=1, 
-            proxy=None, log_callback=None, data_callback=None, stop_check=None, pincode=""):
+            proxy=None, log_callback=None, data_callback=None, stop_check=None, pincode="", phone_filter="all"):
         
         queries = [q.strip() for q in query.split(",") if q.strip()]
         areas = [a.strip() for a in area.split(",") if a.strip()]
@@ -288,11 +288,12 @@ class ScraperEngine:
                                     continue
                                 seen_urls.add(base_url)
 
-                                # Fast direct navigation to place details
+                                # Fast direct navigation to place details with graceful timeout handling
                                 try:
                                     page.goto(place_url, wait_until='domcontentloaded', timeout=15000)
-                                except Exception:
-                                    pass
+                                except Exception as nav_e:
+                                    safe_log(f"   ⚠️ Network/page lag for '{name}', moving to next listing...")
+                                    continue
                                     
                                 time.sleep(0.5)
                                 
@@ -324,6 +325,15 @@ class ScraperEngine:
                                 if phone_element:
                                     raw_phone = phone_element.inner_text().strip().replace('\n', '')
                                     phone = re.sub(r'[\ue000-\uf8ff]', '', raw_phone).strip()
+
+                                # Phone number filter check
+                                has_phone = bool(phone and phone.strip() and phone.strip().upper() not in ["N/A", "NONE", "NULL", ""])
+                                if phone_filter == "only_with_phone" and not has_phone:
+                                    safe_log(f"   ⏩ Skipping '{name}' (No phone number)")
+                                    continue
+                                elif phone_filter == "without_phone" and has_phone:
+                                    safe_log(f"   ⏩ Skipping '{name}' (Has phone number)")
+                                    continue
 
                                 website_element = page.query_selector('a[data-item-id="authority"]')
                                 if website_element:

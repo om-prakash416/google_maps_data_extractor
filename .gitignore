@@ -27,6 +27,7 @@ ENV/
 
 # Data Outputs
 output/
+outputs/
 *.csv
 *.xlsx
 
